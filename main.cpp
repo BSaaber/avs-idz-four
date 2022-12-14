@@ -1,5 +1,12 @@
 #include <iostream>
 #include <pthread.h>
+#include <semaphore.h>
+
+int maxThreadAmount = 3;
+int currentThreadAmount = 0;
+//sem_t threadAmountSemaphore;
+pthread_mutex_t threadAmountMutex;
+
 
 class Thread {
 public:
@@ -16,23 +23,6 @@ protected:
     static void* threadFunction(void* d) {
         (static_cast<Thread*>(d))->logic();
         return nullptr;
-    }
-};
-
-class LeftPrinterThread : public Thread {
-    void logic() override {
-        while(true) {
-            std::cout << "(";
-        }
-
-    }
-};
-
-class RightPrinterThread : public Thread {
-    void logic() override {
-        while (true) {
-            std::cout << ")";
-        }
     }
 };
 
@@ -72,10 +62,25 @@ private:
     void logic() {
         double m = (*a + *b) / 2;
         double halfPrecision = *precision / 2;
+        bool doLeftInThisThread, doRightInThisThread;
+
+        pthread_mutex_lock(&threadAmountMutex);
+
         CalculationThread leftThread(*a, m, halfPrecision);
+        if (!(doLeftInThisThread = (currentThreadAmount >= maxThreadAmount))) {
+            currentThreadAmount++;
+            leftThread.start();
+        }
+
         CalculationThread rightThread(m, *b, halfPrecision);
-        leftThread.start();
-        rightThread.start();
+        if (!(doRightInThisThread = (currentThreadAmount >= maxThreadAmount))) {
+            currentThreadAmount++;
+            rightThread.start();
+        }
+
+        pthread_mutex_unlock(&threadAmountMutex);
+
+
         double approximation = approximate(*a, *b);
         double leftApproximation = approximate(*a, m);
         double rightApproximation = approximate(m, *b);
@@ -85,8 +90,25 @@ private:
             *res = approximation;
             return;
         }
-        leftThread.wait();
-        rightThread.wait();
+
+        if (doLeftInThisThread) {
+            leftThread.logic();
+        } else {
+            leftThread.wait();
+            pthread_mutex_lock(&threadAmountMutex);
+            currentThreadAmount--;
+            pthread_mutex_unlock(&threadAmountMutex);
+        }
+
+        if (doRightInThisThread) {
+            rightThread.logic();
+        } else {
+            rightThread.wait();
+            pthread_mutex_lock(&threadAmountMutex);
+            currentThreadAmount--;
+            pthread_mutex_unlock(&threadAmountMutex);
+        }
+
         *res = leftThread.getResult() + rightThread.getResult();
     }
 
@@ -94,8 +116,13 @@ private:
 };
 
 int main() {
-    CalculationThread myThread(-5, 4, 0.001);
+    CalculationThread myThread(-5, 4, 0.01);
+
+    pthread_mutex_lock(&threadAmountMutex);
     myThread.start();
+    currentThreadAmount++;
+    pthread_mutex_unlock(&threadAmountMutex);
+
     myThread.wait();
     std::cout << "res: " << myThread.getResult() << "\n";
 }
