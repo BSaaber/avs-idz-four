@@ -133,16 +133,16 @@ private:
 
 };
 
-int main() {
+int main(int argc, char* argv[]) {
     try {
-        std::cout << "enter max amount of threads (1 <= t <= 99 | default=4)\n";
-        int t;
-        std::cin >> t;
-        if (t >= 1 && t <= 99) {
-            maxThreadAmount = t;
-        } else {
-            std::cout << "using default value = 4\n";
+        if (argc == 1) {
+            int input = atoi(argv[0]);
+            if (input >= 1 && input <= 99) {
+                maxThreadAmount = input;
+            }
         }
+        std::cout << "thread amount: " << maxThreadAmount << '\n';
+
         std::cout << "enter coefficients of polynomet ax^2+bx+c\n";
         double myA, myB, myC;
         std::cin >> myA >> myB >> myC;
