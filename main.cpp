@@ -53,7 +53,7 @@ double approximate(double left, double right) {
 // Main class, recursively solving the problem
 class CalculationThread : public Thread {
 public:
-    CalculationThread(double a, double b, double precision) : a(new double(a)), b(new double(b)), precision(new double(precision)), res(new double(-1)) {
+    CalculationThread(double a, double b, double precision) : a(new double(a)), b(new double(b)), precision(new double(precision)), res(new double(-1)), wasStarted(false) {
     }
 
     double getResult() const {
@@ -76,15 +76,20 @@ public:
 private:
     double *a, *b, *precision, *res;
     CalculationThread *leftThread = nullptr, *rightThread = nullptr;
+    bool wasStarted;
 
     void stopAndClearChildren() {
         if (leftThread != nullptr) {
-            leftThread->cancel();
+            if (leftThread->wasStarted) {
+                leftThread->cancel();
+            }
             delete leftThread;
             leftThread = nullptr;
         }
         if (rightThread != nullptr) {
-            rightThread->cancel();
+            if (rightThread->wasStarted) {
+                rightThread->cancel();
+            }
             delete rightThread;
             rightThread = nullptr;
         }
@@ -103,6 +108,7 @@ private:
         if (!(doLeftInThisThread = (currentThreadAmount >= maxThreadAmount))) {
             currentThreadAmount++;
             leftThread->start();
+            leftThread->wasStarted = true;
         }
 
         rightThread = new CalculationThread(m, *b, halfPrecision);
@@ -110,6 +116,7 @@ private:
         if (!(doRightInThisThread = (currentThreadAmount >= maxThreadAmount))) {
             currentThreadAmount++;
             rightThread->start();
+            rightThread->wasStarted = true;
         }
 
         pthread_mutex_unlock(&threadAmountMutex);
