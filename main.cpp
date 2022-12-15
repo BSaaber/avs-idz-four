@@ -162,8 +162,8 @@ private:
 
 int main(int argc, char* argv[]) {
     try {
-        if (argc == 1) {
-            int input = atoi(argv[0]);
+        if (argc == 2) {
+            int input = atoi(argv[1]);
             if (input >= 1 && input <= 99) {
                 maxThreadAmount = input;
             }
