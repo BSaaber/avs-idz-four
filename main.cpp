@@ -17,6 +17,11 @@ public:
     int wait() {
         return pthread_join(_ThreadId, nullptr);
     }
+
+    int cancel() {
+        pthread_cancel(_ThreadId);
+        return pthread_join(_ThreadId, nullptr);
+    }
 protected:
     pthread_t  _ThreadId;
     virtual void logic () = 0;
@@ -60,10 +65,30 @@ public:
         delete b;
         delete precision;
         delete res;
+        if (leftThread != nullptr) {
+            delete leftThread;
+        }
+        if (rightThread != nullptr) {
+            delete rightThread;
+        }
     }
 
 private:
     double *a, *b, *precision, *res;
+    CalculationThread *leftThread = nullptr, *rightThread = nullptr;
+
+    void stopAndClearChildren() {
+        if (leftThread != nullptr) {
+            leftThread->cancel();
+            delete leftThread;
+            leftThread = nullptr;
+        }
+        if (rightThread != nullptr) {
+            rightThread->cancel();
+            delete rightThread;
+            rightThread = nullptr;
+        }
+    }
 
     void logic() {
         double m = (*a + *b) / 2;
@@ -73,18 +98,18 @@ private:
         // locking mutex to access and change thread amount
         pthread_mutex_lock(&threadAmountMutex);
 
-        CalculationThread leftThread(*a, m, halfPrecision);
+        leftThread = new CalculationThread(*a, m, halfPrecision);
         // if thread amount is less then max, start solving problem on the left half recursively in another thread
         if (!(doLeftInThisThread = (currentThreadAmount >= maxThreadAmount))) {
             currentThreadAmount++;
-            leftThread.start();
+            leftThread->start();
         }
 
-        CalculationThread rightThread(m, *b, halfPrecision);
+        rightThread = new CalculationThread(m, *b, halfPrecision);
         // if thread amount is less then max, start solving problem on the right half recursively in another thread
         if (!(doRightInThisThread = (currentThreadAmount >= maxThreadAmount))) {
             currentThreadAmount++;
-            rightThread.start();
+            rightThread->start();
         }
 
         pthread_mutex_unlock(&threadAmountMutex);
@@ -97,8 +122,10 @@ private:
         double diff = leftApproximation + rightApproximation - approximation;
         diff = (diff < 0) ? -diff : diff;
         if (diff < *precision) {
+            // enough precision? ok, lets save the answer
             *res = approximation;
-            // enough precision? ok, lets return the answer
+            // and clear children before exit
+            stopAndClearChildren();
             return;
         }
 
@@ -106,10 +133,10 @@ private:
 
         // if there were not enough threads, time to start solving recursive problem
         if (doLeftInThisThread) {
-            leftThread.logic();
+            leftThread->logic();
         } else {
             // else - wait for thread and get result
-            leftThread.wait();
+            leftThread->wait();
             pthread_mutex_lock(&threadAmountMutex);
             currentThreadAmount--;
             pthread_mutex_unlock(&threadAmountMutex);
@@ -117,17 +144,17 @@ private:
 
         // if there were not enough threads, time to start solving recursive problem
         if (doRightInThisThread) {
-            rightThread.logic();
+            rightThread->logic();
         } else {
             // else - wait for thread and get result
-            rightThread.wait();
+            rightThread->wait();
             pthread_mutex_lock(&threadAmountMutex);
             currentThreadAmount--;
             pthread_mutex_unlock(&threadAmountMutex);
         }
 
-        // summ and return
-        *res = leftThread.getResult() + rightThread.getResult();
+        // save answer
+        *res = leftThread->getResult() + rightThread->getResult();
     }
 
 
@@ -161,16 +188,16 @@ int main(int argc, char* argv[]) {
             precision = 0.001;
             std::cout << "using default value for precision\n";
         }
-        CalculationThread myThread(left, right, precision);
-
+        CalculationThread* myThread = new CalculationThread(left, right, precision);
 
         pthread_mutex_lock(&threadAmountMutex);
-        myThread.start();
+        myThread->start();
         currentThreadAmount++;
         pthread_mutex_unlock(&threadAmountMutex);
 
-        myThread.wait();
-        std::cout << "result: " << myThread.getResult() << "\n";
+        myThread->wait();
+        std::cout << "result: " << myThread->getResult() << "\n";
+        delete myThread;
     } catch (std::exception& e) {
         std::cout << "something went wrong. Invalid input, maybe?\n";
     }
