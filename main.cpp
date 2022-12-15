@@ -1,10 +1,8 @@
 #include <iostream>
 #include <pthread.h>
-#include <semaphore.h>
 
-int maxThreadAmount = 3;
+int maxThreadAmount = 4;
 int currentThreadAmount = 0;
-//sem_t threadAmountSemaphore;
 pthread_mutex_t threadAmountMutex;
 
 
@@ -26,8 +24,12 @@ protected:
     }
 };
 
+
+double a = 1;
+double b = 2;
+double c = 3;
 double f(double x) {
-    return 0.04 * x * x - 3 * x + 1;
+    return a * x * x + b * x + c;
 }
 
 
@@ -116,7 +118,35 @@ private:
 };
 
 int main() {
-    CalculationThread myThread(-5, 4, 0.01);
+    try {
+    std::cout << "enter max amount of threads (1 <= t <= 99 | default=4)\n";
+    int t;
+    std::cin >> t;
+    if (t >= 1 && t <= 99) {
+        maxThreadAmount = t;
+    } else {
+        std::cout << "using default value = 4\n";
+    }
+    std::cout << "enter coefficients of polynomet ax^2+bx+c\n";
+    double myA, myB, myC;
+    std::cin >> myA >> myB >> myC;
+    a = myA;
+    b = myB;
+    c = myC;
+    std::cout << "enter left border, right border and precision\n(left < right; precision > 0.00001\ndefault values: -2 2 0.001)\n";
+    double left = -2, right = 2, precision = 0.00001;
+    std::cin >> left >> right >> precision;
+    if (left >= right) {
+        left = -2;
+        right = 2;
+        std::cout << "using default values for left and right\n";
+    }
+    if (precision < 0.00001) {
+        precision = 0.001;
+        std::cout << "using default value for precision\n";
+    }
+    CalculationThread myThread(left, right, precision);
+
 
     pthread_mutex_lock(&threadAmountMutex);
     myThread.start();
@@ -124,5 +154,8 @@ int main() {
     pthread_mutex_unlock(&threadAmountMutex);
 
     myThread.wait();
-    std::cout << "res: " << myThread.getResult() << "\n";
+    std::cout << "result: " << myThread.getResult() << "\n";
+    } catch (std::exception& e) {
+        std::cout << "invalid input\n";
+    }
 }
